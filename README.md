@@ -94,3 +94,6 @@ def agg_trans():
 
 df = agg_trans()
 print(df)
+
+import streamlit as st
+st.title("PHONEPE DATA VISUALISATION")
