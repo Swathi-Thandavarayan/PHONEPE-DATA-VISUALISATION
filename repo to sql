@@ -1,0 +1,577 @@
+from git import Repo
+import pandas as pd
+import json
+import os
+import mysql.connector
+import plotly.express as px
+import streamlit as st
+
+##  MYSQL
+config = {
+    "user": "root",
+    "password": "1234",
+    "host": "127.0.0.1",
+    "database": "phonepe_pulse"
+}
+connection = mysql.connector.connect(**config)
+cursor = connection.cursor()
+
+def agg_trans():
+#This is to direct the path to get the data as states
+
+    path = 'D:/GUVI/PHONEPE/pulse/data/aggregated/transaction/country/india/state/'
+
+    Agg_state_list=os.listdir(path)
+    #print(Agg_state_list)
+
+    clm={'State':[], 'Year':[],'Quarter':[],'Transacion_type':[], 'Transacion_count':[], 'Transacion_amount':[]}
+
+    for i in Agg_state_list:
+        p_i=path + i +'/'
+        Agg_yr=os.listdir(p_i)
+        for j in Agg_yr:
+            p_j=p_i+j+'/'
+            Agg_yr_list= os.listdir(p_j) #file_list = os.listdir(directory_path)
+
+            for k in Agg_yr_list:
+                p_k=p_j+k
+                Data=open(p_k,'r')
+                D=json.load(Data)
+                for z in D['data']['transactionData']:
+                    Name=z['name']
+                    count=z['paymentInstruments'][0]['count']
+                    amount=z['paymentInstruments'][0]['amount']
+                    clm['Transacion_type'].append(Name)
+                    clm['Transacion_count'].append(count)
+                    clm['Transacion_amount'].append(amount)
+                    clm['State'].append(i)
+                    clm['Year'].append(j)
+                    clm['Quarter'].append(int(k.strip('.json')))
+    #Succesfully created a dataframe
+    Agg_Trans=pd.DataFrame(clm)
+    Agg_Trans['State'] = Agg_Trans['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    Agg_Trans['State'] = Agg_Trans['State'].str.replace('-',' ')
+    Agg_Trans['State'] = Agg_Trans['State'].str.title()
+    Agg_Trans['State'] = Agg_Trans['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+    #print(Agg_Trans)
+    
+
+
+
+    create_table = '''CREATE TABLE IF NOT EXISTS agg_transaction(STATE VARCHAR(250),
+                                                YEAR VARCHAR(250),
+                                                QUARTER INT,
+                                                TRANSACTION_TYPE VARCHAR(250),
+                                                TRANSACTION_COUNT VARCHAR(250),
+                                                TRANSACTION_AMOUNT VARCHAR(250))'''
+
+    cursor.execute(create_table)
+    connection.commit()
+
+
+    for index, row in Agg_Trans.iterrows():
+        insert_query = '''INSERT INTO agg_transaction(STATE ,
+                                                    YEAR ,
+                                                    QUARTER ,
+                                                    TRANSACTION_TYPE,
+                                                    TRANSACTION_COUNT,
+                                                    TRANSACTION_AMOUNT) 
+                                                    values(%s,%s,%s,%s,%s,%s) '''
+        vale_agg_transaction = (row['State'],
+                                row['Year'],
+                                row ['Quarter'], 
+                                row['Transacion_type'], 
+                                row['Transacion_count'],
+                                row['Transacion_amount'])
+        
+        cursor.execute(insert_query,vale_agg_transaction)
+        connection.commit()
+        return Agg_Trans
+
+def agg_user():
+    path = 'D:/GUVI/PHONEPE/pulse/data/aggregated/user/country/india/state/'
+
+    user_state_list = os.listdir(path)
+        #print(user_state_list)
+    clm = {'State':[], 'Year':[],'Quarter':[],'brand':[], 'count':[], 'percentage':[]}
+
+    for i in user_state_list:
+        p_i = path + i + "/"
+        Agg_yr=os.listdir(p_i)
+        for j in Agg_yr:
+                p_j=p_i+j+'/'
+                Agg_yr_list= os.listdir(p_j)
+
+                for k in Agg_yr_list:
+                    p_k=p_j+k
+                    Data=open(p_k,'r')
+                    D=json.load(Data)
+
+                    try:
+
+                        for z in D['data']['usersByDevice']:
+                            brand = z['brand']
+                            count = z['count']
+                            percentage = z['percentage']
+                            clm['brand'].append(brand)
+                            clm['count'].append(count)
+                            clm['percentage'].append(percentage)
+                            clm['State'].append(i)
+                            clm['Year'].append(j)
+                            clm['Quarter'].append(int(k.strip('.json')))
+                    except:
+                        pass
+    Agg_User=pd.DataFrame(clm)
+    Agg_User['State'] = Agg_User['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    Agg_User['State'] = Agg_User['State'].str.replace('-',' ')
+    Agg_User['State'] = Agg_User['State'].str.title()
+    Agg_User['State'] = Agg_User['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+    #print(Agg_User)
+    create_table = '''CREATE TABLE if not exists agg_user(STATE VARCHAR(250),
+                                                YEAR VARCHAR(250),
+                                                QUARTER INT,
+                                                BRAND VARCHAR(250),
+                                                COUNT VARCHAR(250),
+                                                PERCENTAGE VARCHAR(250))'''
+
+    cursor.execute(create_table)
+
+
+    try:
+        
+        for index, row in Agg_User.iterrows():
+            insert_query = '''INSERT INTO agg_user(STATE ,
+                                                    YEAR ,
+                                                    QUARTER ,
+                                                    BRAND,
+                                                    COUNT,
+                                                    PERCENTAGE) 
+                                                    values(%s,%s,%s,%s,%s,%s) '''
+            value_agg_user = (row['State'],
+                            row['Year'],
+                            row ['Quarter'], 
+                            row['brand'], 
+                            row['count'],
+                            row['percentage'])
+            cursor.execute(insert_query,value_agg_user)
+            connection.commit()
+    except Exception as e:
+                        print(f"An error occurred: {e}")
+    return Agg_User
+ 
+def map_trans():
+    path = 'D:/GUVI/PHONEPE/pulse/data/map/transaction/hover/country/india/state/'
+    map_trans_list=os.listdir(path)
+    clm={'State':[], 'Year':[],'Quarter':[],'Transacion_type':[], 'Transacion_count':[], 'Transacion_amount':[]}
+
+    for i in map_trans_list:
+        p_i=path + i +'/'
+        Agg_yr=os.listdir(p_i)
+        for j in Agg_yr:
+            p_j=p_i+j+'/'
+            Agg_yr_list= os.listdir(p_j) #file_list = os.listdir(directory_path)
+
+            for k in Agg_yr_list:
+                p_k=p_j+k
+                Data=open(p_k,'r')
+                D=json.load(Data)
+                for z in D['data']['hoverDataList']:
+                    Name=z['name']
+                    count=z['metric'][0]['count']
+                    amount=z['metric'][0]['amount']
+                    clm['Transacion_type'].append(Name)
+                    clm['Transacion_count'].append(count)
+                    clm['Transacion_amount'].append(amount)
+                    clm['State'].append(i)
+                    clm['Year'].append(j)
+                    clm['Quarter'].append(int(k.strip('.json')))
+        #Succesfully created a dataframe
+    map_trans=pd.DataFrame(clm)
+    map_trans['State'] = map_trans['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    map_trans['State'] = map_trans['State'].str.replace('-',' ')
+    map_trans['State'] = map_trans['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+    create_table = '''CREATE TABLE if not exists map_transactions (STATE VARCHAR(250),
+                                                YEAR VARCHAR(250),
+                                                QUARTER INT,
+                                                TRANSACTION_TYPE VARCHAR(250),
+                                                Transacion_count VARCHAR(250),
+                                                Transacion_amount VARCHAR(250))'''
+
+    cursor.execute(create_table)
+    connection.commit()
+
+
+    for index, row in map_trans.iterrows():
+        insert_query = '''INSERT INTO map_transactions(STATE ,
+                                                    YEAR ,
+                                                    QUARTER ,
+                                                    TRANSACTION_TYPE,
+                                                    Transacion_count,
+                                                    Transacion_amount) 
+                                                    values(%s,%s,%s,%s,%s,%s) '''
+        vale_map_transaction = (row['State'],
+                                row['Year'],
+                                row ['Quarter'], 
+                                row['Transacion_type'], 
+                                row['Transacion_count'],
+                                row['Transacion_amount'])
+        
+        cursor.execute(insert_query,vale_map_transaction)
+        connection.commit()
+    return map_trans
+
+
+def map_user():
+    path = 'D:/GUVI/PHONEPE/pulse/data/map/user/hover/country/india/state/' 
+    map_user_list = os.listdir(path)
+    clm = {'State':[], 'Year':[],'Quarter':[],'appOpens':[], 'registeredUsers':[], 'District':[]}
+    
+    for i in map_user_list:
+            p_i = path + i + "/"
+            Agg_yr=os.listdir(p_i)
+            for j in Agg_yr:
+                p_j=p_i+j+'/'
+                Agg_yr_list= os.listdir(p_j) #file_list = os.listdir(directory_path)
+
+                for k in Agg_yr_list:
+                    p_k=p_j+k
+                    Data=open(p_k,'r')
+                    D=json.load(Data)
+                    
+                    try:
+                        for z in D['data']['hoverData'].items():
+                            District = z[0] 
+                            registeredUsers = z[1]['registeredUsers']
+                            appOpens = z[1]['appOpens']
+                            clm['District'].append(District)
+                            clm['registeredUsers'].append(registeredUsers)
+                            clm['appOpens'].append(appOpens)
+                            clm['State'].append(i)
+                            clm['Year'].append(j)
+                            clm['Quarter'].append(int(k.strip('.json')))
+                    except:
+                            pass
+    map_User=pd.DataFrame(clm)
+    map_User['State'] = map_User['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    map_User['State'] = map_User['State'].str.replace('-',' ')
+    map_User['State'] = map_User['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+    map_User['State'] = map_User['State'].str.replace('jammu-&-kashmir', 'jammu & kashmir')
+
+    create_table = '''CREATE TABLE if not exists map_User(STATE VARCHAR(250),
+                                            YEAR VARCHAR(250),
+                                            QUARTER INT,
+                                            APP_OPENS INT,
+                                            REGISTERED_USERS INT,
+                                            DISTRICT VARCHAR(250))''' 
+    cursor.execute(create_table)  
+
+    for index,row in map_User.iterrows():
+         insert_query = '''INSERT INTO map_User(STATE ,
+                                            YEAR,
+                                            QUARTER ,
+                                            APP_OPENS ,
+                                            REGISTERED_USERS ,
+                                            DISTRICT)
+                                            values(%s,%s,%s,%s,%s,%s)'''
+         value_map_User = (row['State'],
+                            row['Year'],
+                            row ['Quarter'], 
+                            row['appOpens'], 
+                            row['registeredUsers'],
+                            row['District'])
+    
+    cursor.execute(insert_query,value_map_User)
+    connection.commit()
+    return map_User
+
+def top_trans():
+    path = 'D:/GUVI/PHONEPE/pulse/data/top/transaction/country/india/state/'
+    top_trans_list = os.listdir(path)
+    clm = {'State':[], 'Year':[], 'Quarter':[],'districts':[],'Transaction_Amount':[], 'Transaction_count':[]}
+    clm1 = {'State':[], 'Year':[], 'Quarter':[],'pincode':[],'Transaction_Amount':[], 'Transaction_count':[]}
+    for i in top_trans_list:
+        p_i = path + i + '/'
+        top_yr = os.listdir(p_i)
+        for j in top_yr:
+            p_j = p_i + j + '/'
+            top_yr_list = os.listdir(p_j)
+            for k in top_yr_list:
+                p_k = p_j+k
+                Data=open(p_k,'r')
+                D=json.load(Data)
+
+                try:
+                    for z in D['data']['districts']:
+                        entityName= z['entityName']
+                        count = z['metric']['count']
+                        Amount = z['metric']['amount']
+                        clm['districts'].append(entityName)
+                        clm['Transaction_count'].append(count)
+                        clm['Transaction_Amount'].append(Amount)
+                        clm['State'].append(i)
+                        clm['Year'].append(j)
+                        clm['Quarter'].append(int(k.strip('.json')))
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+
+    top_trans=pd.DataFrame(clm)
+    top_trans['State'] = top_trans['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    top_trans['State'] = top_trans['State'].str.replace('-',' ')
+    top_trans['State'] = top_trans['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+    #print(top_trans)
+
+    create_table = '''CREATE TABLE IF NOT EXISTS top_transactions_district(
+                                                                        STATE VARCHAR(250),
+                                                                        YEAR VARCHAR(250),
+                                                                        QUARTER INT,
+                                                                        DISTRICT VARCHAR(250),
+                                                                        TRANSACTION_COUNT INT,
+                                                                        TRANSACTION_AMOUNT VARCHAR(250))'''
+
+    cursor.execute(create_table) 
+
+    for index, row in top_trans.iterrows():
+            insert_query = '''INSERT INTO top_transactions_district(STATE ,
+                                            YEAR ,
+                                            QUARTER ,
+                                            DISTRICT,
+                                            TRANSACTION_COUNT,
+                                            TRANSACTION_AMOUNT)
+                                            values(%s,%s,%s,%s,%s,%s)'''   
+            values_top_trans = (row['State'],
+                            row['Year'],
+                            row ['Quarter'], 
+                            row['districts'], 
+                            row['Transaction_count'],
+                            row['Transaction_Amount'])
+
+            cursor.execute(insert_query,values_top_trans)
+            connection.commit()
+
+    #pincode
+    for i in top_trans_list:
+        p_i = path + i + '/'
+        top_yr = os.listdir(p_i)
+        for j in top_yr:
+            p_j = p_i + j + '/'
+            top_yr_list = os.listdir(p_j)
+            for k in top_yr_list:
+                p_k = p_j+k
+                Data=open(p_k,'r')
+                D=json.load(Data)
+
+                try:
+                    for z in D['data']['pincodes']:
+                        entityName= z['entityName']
+                        count = z['metric']['count']
+                        Amount = z['metric']['amount']
+                        clm1['pincode'].append(entityName)
+                        clm1['Transaction_count'].append(count)
+                        clm1['Transaction_Amount'].append(Amount)
+                        clm1['State'].append(i)
+                        clm1['Year'].append(j)
+                        clm1['Quarter'].append(int(k.strip('.json')))
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+
+    top_trans_pincode=pd.DataFrame(clm1)
+    top_trans_pincode['State'] = top_trans_pincode['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    top_trans_pincode['State'] = top_trans_pincode['State'].str.replace('-',' ')
+    top_trans_pincode['State'] = top_trans_pincode['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+    #print(top_trans_pincode)
+
+    create_table = '''CREATE TABLE IF NOT EXISTS top_transactions_pincode(
+                            STATE VARCHAR(250),
+                            YEAR VARCHAR(250),
+                            QUARTER INT,
+                            PINCODE INT,
+                            TRANSACTION_COUNT INT,
+                            TRANSACTION_AMOUNT VARCHAR(250))'''
+        
+    cursor.execute(create_table) 
+
+    for index, row in top_trans_pincode.iterrows():
+        insert_query = '''INSERT INTO top_transactions_pincode(STATE ,
+                                        YEAR ,
+                                        QUARTER ,
+                                        PINCODE,
+                                        TRANSACTION_COUNT,
+                                        TRANSACTION_AMOUNT)
+                                        values(%s,%s,%s,%s,%s,%s)'''   
+        values_top_trans = (row['State'],
+                        row['Year'],
+                        row ['Quarter'], 
+                        row['pincode'], 
+                        row['Transaction_count'],
+                        row['Transaction_Amount'])
+
+        cursor.execute(insert_query,values_top_trans)
+        connection.commit()
+
+    return top_trans,top_trans_pincode     
+
+def top_user():
+    path_top_user = 'D:/GUVI/PHONEPE/pulse/data/top/user/country/india/state/'
+    top_user_list = os.listdir(path_top_user)
+    clm = {'State':[], 'Year':[], 'Quarter':[],'district':[], 'registeredUsers':[]}
+    clm1 = {'State':[], 'Year':[], 'Quarter':[],'pincode':[], 'registeredUsers':[]}
+    for i in top_user_list:
+            p_i = path_top_user + i + '/'
+            top_yr = os.listdir(p_i)
+            for j in top_yr:
+                p_j = p_i + j + '/'
+                top_yr_list = os.listdir(p_j) 
+                for k in top_yr_list:
+                    p_k = p_j+k
+                    Data=open(p_k,'r')
+                    D=json.load(Data)
+                    
+                    try:
+                        for z in D['data']['districts']:
+                            district =z['name'] 
+                            registeredUsers = z['registeredUsers']
+                            clm['registeredUsers'].append(registeredUsers)
+                            clm['district'].append(district)
+                            clm['State'].append(i)
+                            clm['Year'].append(j)
+                            clm['Quarter'].append(int(k.strip('.json')))
+                    except Exception as e:
+                        print(f"An error occurred: {e}")
+
+    top_users=pd.DataFrame(clm)
+    top_users['State'] = top_users['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    top_users['State'] = top_users['State'].str.replace('-',' ')
+    top_users['State'] = top_users['State'].str.title()
+    top_users['State'] = top_users['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+
+    create_table = '''CREATE TABLE IF NOT EXISTS Top_Users_district(STATE VARCHAR(250),
+                                            YEAR VARCHAR(250),
+                                            QUARTER INT,
+                                            DISTRICT VARCHAR(250),
+                                            REGISTERED_USERS INT
+                                            )'''
+
+    cursor.execute(create_table)
+    connection.commit()
+
+    for index, row in top_users.iterrows():
+        insert_query = '''INSERT INTO Top_Users_district(STATE ,
+                                                YEAR ,
+                                                QUARTER ,
+                                                DISTRICT,
+                                                REGISTERED_USERS) 
+                                                values(%s,%s,%s,%s,%s) '''
+
+        value_Top_Users =(row['State'],
+                            row['Year'],
+                            row ['Quarter'], 
+                            row['district'], 
+                            row['registeredUsers']
+        )
+        try:                    
+            cursor.execute(insert_query,value_Top_Users)
+            connection.commit()
+        except Exception as e:
+                        print(f"An error occurred: {e}")   
+
+    for i in top_user_list:
+            p_i = path_top_user + i + '/'
+            top_yr = os.listdir(p_i)
+            for j in top_yr:
+                p_j = p_i + j + '/'
+                top_yr_list = os.listdir(p_j) 
+                for k in top_yr_list:
+                    p_k = p_j+k
+                    Data=open(p_k,'r')
+                    D=json.load(Data)
+                    
+                    try:
+                        for z in D['data']['pincodes']:
+                            pincode =z['name'] 
+                            registeredUsers = z['registeredUsers']
+                            clm1['registeredUsers'].append(registeredUsers)
+                            clm1['pincode'].append(pincode)
+                            clm1['State'].append(i)
+                            clm1['Year'].append(j)
+                            clm1['Quarter'].append(int(k.strip('.json')))
+                    except Exception as e:
+                        print(f"An error occurred: {e}")
+
+    top_users_pincode=pd.DataFrame(clm1)
+    top_users_pincode['State'] = top_users_pincode['State'].str.replace('andaman-&-nicobar-islands', 'Andaman & Nicobar-islands')
+    top_users_pincode['State'] = top_users_pincode['State'].str.replace('-',' ')
+    top_users_pincode['State'] = top_users_pincode['State'].str.title()
+    top_users_pincode['State'] = top_users_pincode['State'].str.replace('dadra-&-nagar-haveli-&-daman-&-diu', 'Dadra & Nagar-Haveli & Daman & Diu')
+
+    create_table = '''CREATE TABLE IF NOT EXISTS Top_Users_pincode(STATE VARCHAR(250),
+                                            YEAR VARCHAR(250),
+                                            QUARTER INT,
+                                            PINCODE INT,
+                                            REGISTERED_USERS INT
+                                            )'''
+
+    cursor.execute(create_table)
+    connection.commit()
+
+    for index, row in top_users_pincode.iterrows():
+        insert_query = '''INSERT INTO Top_Users_pincode(STATE ,
+                                                YEAR ,
+                                                QUARTER ,
+                                                PINCODE,
+                                                REGISTERED_USERS) 
+                                                values(%s,%s,%s,%s,%s) '''
+
+        value_Top_Users =(row['State'],
+                            row['Year'],
+                            row ['Quarter'], 
+                            row['pincode'], 
+                            row['registeredUsers']
+        )
+        try:                    
+            cursor.execute(insert_query,value_Top_Users)
+            connection.commit()
+        except Exception as e:
+                        print(f"An error occurred: {e}")        
+    return top_users,top_users_pincode
+
+
+##**STREAMLIT**
+#st.write("agg_trans")
+df1 = agg_trans()
+#st.dataframe(df1)
+#st.write("agg_user")
+df2 = agg_user()
+#st.dataframe(df2)
+#st.write("map_trans")
+df3 = map_trans()
+#st.dataframe(df3)
+#st.write("map_user")
+df4 = map_user()
+#st.dataframe(df4)
+#st.write("top_trans")
+df5= top_trans()
+#st.dataframe(df5)
+#st.write("top_user")
+df6= top_user()
+#st.dataframe(df6)
+
+
+print(df1,df2,df3,df4,df5,df6)
+
+
+#map
+
+#df = top_user()
+#print(df)
+#fig = px.choropleth(
+    #df,
+    #geojson="https://gist.githubusercontent.com/jbrobst/56c13bbbf9d97d187fea01ca62ea5112/raw/e388c4cae20aa53cb5090210a42ebb9b765c0a36/india_states.geojson",
+    #featureidkey='properties.ST_NM',
+    #locations='State',
+    #color='registeredUsers',
+    #color_continuous_scale='Reds')
+#fig.update_geos(fitbounds="locations", visible=False)
+
+#fv=fig.show()
+#st.write("fv")
+
