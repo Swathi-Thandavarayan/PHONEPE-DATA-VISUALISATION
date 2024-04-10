@@ -10,7 +10,7 @@ import plotly.express as px
 import streamlit as st
 
 config = {
-    "user": "root",
+    "user": "root", 
     "password": "1234",
     "host": "127.0.0.1",
     "database": "phonepe_pulse"
